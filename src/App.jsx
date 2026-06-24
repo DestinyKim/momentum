@@ -533,14 +533,14 @@ function TodoPage({ todos, setTodos }) {
 
       {(() => {
         const pct = todos.length ? Math.round(doneN / todos.length * 100) : 0;
-        const wl = last7Labels(), mock = [4,6,3,7,5,6];
-        const week = wl.map((l,i) => i < 6 ? { label:l, value:mock[i] } : { label:l, value:doneN, hl:true });
+        const wl = last7Labels();
+        const week = wl.map((l,i) => ({ label:l, value: i === 6 ? doneN : 0, hl: i === 6 }));
         return (
           <section className="card insight">
             <TargetRing value={doneN} max={todos.length || 1} caption={pct + "%"} sub={`${doneN}/${todos.length} 완료`} color="var(--accent)" />
             <div className="ins-text">
               <div className="ins-cap">{pct === 100 ? "오늘 할 일을 모두 끝냈어요! 🎯" : <>목표까지 <b>{todos.length - doneN}개</b> 남았어요</>}</div>
-              <div className="ins-sub">최근 7일 동안 완료한 할 일이에요. 꾸준함이 쌓이고 있어요.</div>
+              <div className="ins-sub">오늘 완료한 할 일이에요. 매일 기록이 쌓여 흐름이 됩니다.</div>
               <div className="mini-bars"><Bars data={week} color="var(--accent)" height={80} /></div>
             </div>
           </section>
@@ -1110,8 +1110,17 @@ function DashboardPage({ go, now, profile, mitsByDate, setMitsByDate, todos, set
 
   const score = Math.round((((todos.length?doneN/todos.length:0) + (habits.length?habitN/habits.length:0) + (mits.length?mitDone/mits.length:0)) / 3) * 100);
   const wlabels = last7Labels();
-  const mockWeek = [48,70,55,82,64,76];
-  const weekScore = wlabels.map((l,i) => i < 6 ? { label:l, value:mockWeek[i] } : { label:l, value:score, hl:true });
+  const weekScore = (() => {
+    const b = new Date(); const out = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(b); d.setDate(b.getDate() - i);
+      const k = keyOf(d.getFullYear(), d.getMonth(), d.getDate());
+      const items = mitsByDate[k] || [];
+      const v = items.length ? Math.round(items.filter((x) => x.done).length / items.length * 100) : 0;
+      out.push({ label: wlabels[6 - i], value: v, hl: i === 0 });
+    }
+    return out;
+  })();
   const cheer = score >= 80 ? "완벽에 가까워요. 이대로만 쭉!" : score >= 50 ? "좋아요, 한 걸음만 더 가볼까요?" : "시작이 반이에요. 작은 것부터 하나씩!";
 
   const SecHead = ({ icon:Icon, color, title, page }) => (
@@ -2037,7 +2046,7 @@ button{ font-family:inherit; }
 .clock .t{ font-variant-numeric:tabular-nums; font-weight:600; font-size:22px; }
 .clock .d{ font-size:12px; color:var(--faint); margin-top:2px; }
 .stats{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:16px; }
-.stat{ background:var(--card); border:1px solid var(--border); border-radius:16px; padding:15px 16px; box-shadow:var(--shadow); display:flex; flex-direction:column; gap:9px; cursor:pointer; text-align:left; transition:.16s; }
+.stat{ background:var(--card); border:1px solid var(--border); border-radius:16px; padding:15px 16px; box-shadow:var(--shadow); display:flex; flex-direction:column; gap:9px; cursor:pointer; text-align:left; color:var(--text); transition:.16s; }
 .stat:hover{ transform:translateY(-2px); border-color:var(--border2); }
 .stat .lbl{ font-size:12px; color:var(--muted); font-weight:600; display:flex; align-items:center; gap:7px; }
 .stat .val{ font-size:24px; font-weight:700; font-variant-numeric:tabular-nums; }
