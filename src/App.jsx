@@ -72,6 +72,20 @@ const MOODS = [
 
 const WDS = ["일","월","화","수","목","금","토"];
 const last7Labels = () => { const a = []; const b = new Date(); for (let i = 6; i >= 0; i--) { const d = new Date(b); d.setDate(b.getDate() - i); a.push(WDS[d.getDay()]); } return a; };
+/* 이번 주(월요일 시작 ~ 일요일) 날짜 목록: { label, key, today } */
+const weekDays = () => {
+  const b = new Date();
+  const dow = (b.getDay() + 6) % 7; // 월=0 ... 일=6
+  const mon = new Date(b); mon.setDate(b.getDate() - dow);
+  const tkey = keyOf(b.getFullYear(), b.getMonth(), b.getDate());
+  const out = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(mon); d.setDate(mon.getDate() + i);
+    const key = keyOf(d.getFullYear(), d.getMonth(), d.getDate());
+    out.push({ label: WDS[d.getDay()], key, today: key === tkey });
+  }
+  return out;
+};
 
 /* 아이콘 이름 → 컴포넌트 매핑 (메뉴 설정을 데이터로 저장하기 위함) */
 const ICONS = { dashboard:LayoutDashboard, calendar:CalendarIcon, list:ListTodo, target:Target, pen:PenLine, wallet:Wallet, book:BookOpen, checks:ListChecks, note:NotebookPen, star:Star, heart:Heart, cart:ShoppingCart, dumbbell:Dumbbell, plane:Plane, music:Music, coffee:Coffee, camera:Camera, briefcase:Briefcase, gift:Gift, sparkles:Sparkles, trend:TrendingUp };
@@ -417,12 +431,11 @@ function SchedulePage({ events, setEvents }) {
         action={<button className="btn primary" onClick={openNew}><Plus size={16} /> 일정 추가</button>} />
 
       {(() => {
-        const wl = last7Labels(), base = new Date();
-        const counts = wl.map((l, i) => { const d = new Date(base); d.setDate(base.getDate() - (6 - i)); const kk = keyOf(d.getFullYear(), d.getMonth(), d.getDate()); return { label:l, value: events.filter((e) => e.date === kk).length, hl:i===6 }; });
+        const counts = weekDays().map((d) => ({ label:d.label, value: events.filter((e) => e.date === d.key).length, hl:d.today }));
         const total = counts.reduce((s, c) => s + c.value, 0);
         return (
           <section className="card insight-bars">
-            <div className="card-head"><div className="card-title"><span className="icn" style={{ background:tint("var(--blue)",16) }}><CalendarIcon size={16} color="var(--blue)" /></span>이번 주 일정 분포</div><span className="meta">최근 7일 · 총 {total}개</span></div>
+            <div className="card-head"><div className="card-title"><span className="icn" style={{ background:tint("var(--blue)",16) }}><CalendarIcon size={16} color="var(--blue)" /></span>이번 주 일정 분포</div><span className="meta">이번 주 · 총 {total}개</span></div>
             <Bars data={counts} color="var(--blue)" height={104} />
           </section>
         );
@@ -533,8 +546,8 @@ function TodoPage({ todos, setTodos }) {
 
       {(() => {
         const pct = todos.length ? Math.round(doneN / todos.length * 100) : 0;
-        const wl = last7Labels();
-        const week = wl.map((l,i) => ({ label:l, value: i === 6 ? doneN : 0, hl: i === 6 }));
+        const wd = weekDays();
+        const week = wd.map((d) => ({ label:d.label, value: d.today ? doneN : 0, hl: d.today }));
         return (
           <section className="card insight">
             <TargetRing value={doneN} max={todos.length || 1} caption={pct + "%"} sub={`${doneN}/${todos.length} 완료`} color="var(--accent)" />
@@ -620,8 +633,8 @@ function HabitsPage({ habits, setHabits }) {
         action={<button className="btn primary" onClick={openNew}><Plus size={16} /> 습관 추가</button>} />
 
       {habits.length > 0 && (() => {
-        const wl = last7Labels();
-        const cons = wl.map((l,i) => ({ label:l, value: habits.length ? Math.round(habits.reduce((s,h) => s + (h.week[i]||0), 0) / habits.length * 100) : 0, hl:i===6 }));
+        const wd = weekDays();
+        const cons = wd.map((d) => ({ label:d.label, value: d.today && habits.length ? Math.round(doneN / habits.length * 100) : 0, hl:d.today }));
         const best = habits.reduce((m,h) => Math.max(m, h.streak), 0);
         const pct = habits.length ? Math.round(doneN / habits.length * 100) : 0;
         return (
@@ -1109,18 +1122,11 @@ function DashboardPage({ go, now, profile, mitsByDate, setMitsByDate, todos, set
   const addMit = () => { if (!mitText.trim() || mits.length >= 3) return; setMits((p) => [...p, { id:uid(), text:mitText.trim(), done:false }]); setMitText(""); };
 
   const score = Math.round((((todos.length?doneN/todos.length:0) + (habits.length?habitN/habits.length:0) + (mits.length?mitDone/mits.length:0)) / 3) * 100);
-  const wlabels = last7Labels();
-  const weekScore = (() => {
-    const b = new Date(); const out = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(b); d.setDate(b.getDate() - i);
-      const k = keyOf(d.getFullYear(), d.getMonth(), d.getDate());
-      const items = mitsByDate[k] || [];
-      const v = items.length ? Math.round(items.filter((x) => x.done).length / items.length * 100) : 0;
-      out.push({ label: wlabels[6 - i], value: v, hl: i === 0 });
-    }
-    return out;
-  })();
+  const weekScore = weekDays().map((d) => {
+    const items = mitsByDate[d.key] || [];
+    const v = items.length ? Math.round(items.filter((x) => x.done).length / items.length * 100) : 0;
+    return { label: d.label, value: v, hl: d.today };
+  });
   const cheer = score >= 80 ? "완벽에 가까워요. 이대로만 쭉!" : score >= 50 ? "좋아요, 한 걸음만 더 가볼까요?" : "시작이 반이에요. 작은 것부터 하나씩!";
 
   const SecHead = ({ icon:Icon, color, title, page }) => (
