@@ -1790,6 +1790,10 @@ const STYLES = `
 .app[data-theme="light"]{ --bg:#f4f1ec; --bg2:#efe9e0; --card:#ffffff; --card2:#faf7f2; --inset:#f2eee7; --border:#e7e1d6; --border2:#d9d2c5; --text:#2a2631; --muted:#6f6a78; --faint:#a8a2b0; --accent:#d8884a; --accent-ink:#fff7ef; --blue:#4f7ed4; --rose:#d4688d; --green:#3da670; --gold:#c79829; --coral:#d57051; --violet:#8a6fd0; --shadow:0 1px 0 rgba(255,255,255,.6),0 16px 34px -26px rgba(60,40,20,.45); }
 
 *{ box-sizing:border-box; }
+html,body{ margin:0; padding:0; }
+html{ background:#14131a; }
+body{ margin:0; overscroll-behavior:none; -webkit-text-size-adjust:100%; }
+#root{ min-height:100vh; }
 .app{ min-height:100vh; background:linear-gradient(180deg,var(--bg2),var(--bg) 30%); color:var(--text); font-family:'Plus Jakarta Sans',ui-sans-serif,system-ui,sans-serif; letter-spacing:-.01em; -webkit-font-smoothing:antialiased; transition:background .4s,color .25s; }
 button{ font-family:inherit; }
 .shell{ display:flex; min-height:100vh; }
@@ -2117,8 +2121,8 @@ button{ font-family:inherit; }
 
 /* 반응형 */
 @media(max-width:980px){
-  .side{ position:fixed; left:0; top:0; z-index:50; transform:translateX(-100%); transition:transform .25s; box-shadow:30px 0 60px -30px rgba(0,0,0,.5); }
-  .side.open{ transform:none; }
+  .side{ position:fixed; left:0; top:0; z-index:50; transform:translateX(-100%); transition:transform .25s; }
+  .side.open{ transform:none; box-shadow:30px 0 60px -30px rgba(0,0,0,.5); }
   .topbar{ display:flex; align-items:center; justify-content:space-between; padding:13px 16px; border-bottom:1px solid var(--border); background:color-mix(in srgb,var(--bg) 80%,transparent); backdrop-filter:blur(8px); position:sticky; top:0; z-index:30; }
   .hamb{ width:40px; height:40px; border-radius:11px; border:1px solid var(--border); background:var(--card); color:var(--text); display:grid; place-items:center; cursor:pointer; }
   .tb-title{ font-weight:700; font-size:16px; }
