@@ -114,15 +114,15 @@ function Modal({ title, onClose, children, footer, wide }) {
   );
 }
 
-function Confirm({ text, onCancel, onOk }) {
+function Confirm({ text, sub, title = "삭제할까요?", okLabel = "삭제", onCancel, onOk }) {
   return (
-    <Modal title="삭제할까요?" onClose={onCancel}
+    <Modal title={title} onClose={onCancel}
       footer={<>
         <button className="btn ghost" onClick={onCancel}>취소</button>
-        <button className="btn danger" onClick={onOk}><Trash2 size={15} /> 삭제</button>
+        <button className="btn danger" onClick={onOk}><Trash2 size={15} /> {okLabel}</button>
       </>}>
       <p className="confirm-tx">{text}</p>
-      <p className="confirm-sub">이 작업은 되돌릴 수 없어요.</p>
+      <p className="confirm-sub">{sub || "이 작업은 되돌릴 수 없어요."}</p>
     </Modal>
   );
 }
@@ -1583,6 +1583,7 @@ export default function App() {
   const [page, setPage] = useState("dash");
   const [navOpen, setNavOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
   const [pages, setPages] = usePersistentState("pages", BUILTINS);
   const [customData, setCustomData] = usePersistentState("customData", {});
   const [profile, setProfile] = usePersistentState("profile", { name:"지훈", avatar:"" });
@@ -1671,6 +1672,14 @@ export default function App() {
   ]);
 
   const go = useCallback((p) => { setPage(p); setNavOpen(false); window.scrollTo({ top:0 }); }, []);
+  const resetAll = () => {
+    try { ["pages","customData","profile","mitsByDate","todos","events","habits","diaries","metrics","txs","books","dreams"].forEach((k) => { if (LS) LS.removeItem(k); }); } catch (e) {}
+    setPages(BUILTINS); setCustomData({}); setProfile({ name:"", avatar:"" }); setMitsByDate({});
+    setTodos([]); setEvents([]); setHabits([]); setDiaries([]);
+    setMetrics([]); setTxs([]); setBooks([]); setDreams([]);
+    setResetOpen(false); setNavOpen(false); setMenuOpen(false); setPage("dash");
+    window.scrollTo({ top:0 });
+  };
   const visible = pages.filter((p) => !p.hidden);
   const current = page === "dash" ? null : pages.find((p) => p.id === page);
   const title = page === "dash" ? "대시보드" : (current ? current.label : "대시보드");
@@ -1703,6 +1712,9 @@ export default function App() {
           <button className="navbtn theme-row" onClick={() => setTheme((t) => t==="dark"?"light":"dark")}>
             {theme==="dark" ? <Sun size={18} /> : <Moon size={18} />} <span>{theme==="dark"?"라이트 모드":"다크 모드"}</span>
           </button>
+          <button className="navbtn reset-row" onClick={() => { setResetOpen(true); setNavOpen(false); }}>
+            <Trash2 size={18} /> <span>전체 초기화</span>
+          </button>
         </aside>
 
         {/* 본문 */}
@@ -1731,6 +1743,19 @@ export default function App() {
         </main>
       </div>
 
+      {/* 모바일 하단 탭바 */}
+      <nav className="botnav">
+        <button className={"bn"+(page==="dash"?" on":"")} onClick={() => go("dash")}><LayoutDashboard size={21} /><span>홈</span></button>
+        {visible.slice(0,3).map((p) => (
+          <button key={p.id} className={"bn"+(page===p.id?" on":"")} onClick={() => go(p.id)}><Icon name={p.icon} size={21} /><span>{p.label}</span></button>
+        ))}
+        <button className={"bn"+(navOpen?" on":"")} onClick={() => setNavOpen(true)}><Menu size={21} /><span>더보기</span></button>
+      </nav>
+
+      {resetOpen && <Confirm title="전체 초기화" okLabel="모두 삭제"
+        text="모든 데이터를 삭제하고 처음 상태로 되돌릴까요?"
+        sub="할 일·일정·습관·일기·지표·가계부·비전 보드·기록과 프로필이 모두 사라지며 되돌릴 수 없어요."
+        onCancel={() => setResetOpen(false)} onOk={resetAll} />}
       {menuOpen && <MenuManager pages={pages} setPages={setPages} setCustomData={setCustomData} onClose={() => setMenuOpen(false)} currentPageId={page} setPage={setPage} />}
       {profileOpen && (
         <Modal title="프로필" onClose={() => setProfileOpen(false)} footer={<button className="btn primary" onClick={() => setProfileOpen(false)}><Check size={15} /> 완료</button>}>
@@ -1765,6 +1790,8 @@ button{ font-family:inherit; }
 .navbtn:hover{ background:var(--inset); color:var(--text); }
 .navbtn.on{ background:color-mix(in srgb,var(--accent) 14%,transparent); color:var(--accent); }
 .theme-row{ margin-top:4px; border-top:1px solid var(--border); border-radius:0; padding-top:14px; }
+.reset-row{ color:var(--coral); }
+.reset-row:hover{ background:color-mix(in srgb,var(--coral) 12%,transparent); color:var(--coral); }
 .nav-bd{ position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:40; }
 
 .main2{ flex:1; min-width:0; }
@@ -2093,6 +2120,41 @@ button{ font-family:inherit; }
   .tree-nums{ justify-content:center; }
 }
 @media(prefers-reduced-motion:reduce){ *{ transition:none !important; } }
+
+/* ════ 모바일 최적화 ════ */
+.botnav{ display:none; }
+@media(max-width:980px){
+  .topbar{ padding-top:calc(13px + env(safe-area-inset-top)); }
+  .side{ padding-top:calc(18px + env(safe-area-inset-top)); padding-bottom:calc(18px + env(safe-area-inset-bottom)); overflow-y:auto; }
+  .botnav{ display:flex; position:fixed; left:0; right:0; bottom:0; z-index:35;
+    background:color-mix(in srgb,var(--card) 92%,transparent); -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px);
+    border-top:1px solid var(--border); padding:7px 4px calc(7px + env(safe-area-inset-bottom)); gap:2px; }
+  .bn{ flex:1 1 0; min-width:0; display:flex; flex-direction:column; align-items:center; gap:3px; padding:5px 2px; border:none; background:none; color:var(--faint); font-size:10px; font-weight:700; font-family:inherit; cursor:pointer; border-radius:12px; transition:.14s; }
+  .bn span{ max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .bn.on{ color:var(--accent); }
+  .bn:active{ transform:scale(.9); }
+  .pg{ padding-bottom:calc(92px + env(safe-area-inset-bottom)); }
+}
+/* 작은 화면 디테일 */
+@media(max-width:600px){
+  .ph-title{ font-size:23px; }
+  .ph-icn{ width:42px; height:42px; }
+  .stat{ padding:13px 14px; }
+  .stat .val{ font-size:21px; }
+  .card{ padding:16px; }
+  .metric-hero-grid{ grid-template-columns:1fr; }
+  .page-head{ margin-bottom:18px; }
+}
+/* 모바일 모달 → 바텀시트 */
+@media(max-width:560px){
+  .modal-ov{ align-items:flex-end; padding:0; }
+  .modal,.modal.wide{ max-width:none; width:100%; border-radius:22px 22px 0 0; max-height:92vh; padding-bottom:env(safe-area-inset-bottom); position:relative; animation:sheetUp .26s cubic-bezier(.22,1,.36,1); }
+  .modal::before{ content:""; position:absolute; top:9px; left:50%; transform:translateX(-50%); width:38px; height:4px; border-radius:99px; background:var(--border2); }
+  .modal-head{ padding-top:22px; }
+  .modal-foot{ position:sticky; bottom:0; background:var(--card); padding-bottom:calc(20px + env(safe-area-inset-bottom)); }
+  .modal-foot .btn{ flex:1; justify-content:center; height:46px; }
+  @keyframes sheetUp{ from{ transform:translateY(100%); } to{ transform:none; } }
+}
 :focus-visible{ outline:2px solid var(--accent); outline-offset:2px; border-radius:8px; }
 
 /* 메뉴 편집 */
