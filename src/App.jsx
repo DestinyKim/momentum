@@ -5,7 +5,7 @@ import {
   ChevronLeft, ChevronRight, Pencil, Trash2, Star, ArrowDownRight,
   ArrowUpRight, Clock, Leaf, ImagePlus, Upload,
   Settings, Eye, EyeOff, ArrowUp, ArrowDown, ListChecks, NotebookPen,
-  Heart, ShoppingCart, Dumbbell, Plane, Music, Coffee, Camera, Briefcase, Gift, TrendingUp,
+  Heart, ShoppingCart, Dumbbell, Plane, Music, Coffee, Camera, Briefcase, Gift, TrendingUp, Palette,
 } from "lucide-react";
 
 /* ════════════════════════════════════════════════════════════════
@@ -64,6 +64,14 @@ const CAT_COLOR = { 업무:"violet", 개인:"rose", 건강:"green", 약속:"blue
 const VAR = (c) => `var(--${c || "faint"})`;
 const catVar = (name) => VAR(CAT_COLOR[name] || "accent");
 const tint = (v, p = 14) => `color-mix(in srgb, ${v} ${p}%, transparent)`;
+
+const MOOD_THEMES = [
+  { id:"amber", label:"앰버", sub:"따뜻한 베이지·살구", swatch:["#f1b07f","#1e1c27","#f4f1ec"] },
+  { id:"slate", label:"슬레이트", sub:"차분한 블루그레이", swatch:["#7ea8e0","#1b212d","#eef1f5"] },
+  { id:"forest", label:"포레스트", sub:"자연스러운 그린", swatch:["#8fc97a","#1b251a","#f1f4ec"] },
+  { id:"bloom", label:"블룸", sub:"발랄한 핑크라벤더", swatch:["#e892c9","#251e30","#fbf1f7"] },
+  { id:"aurora", label:"아우로라", sub:"보라\u2192자홍 오로라 그라디언트", swatch:["#a06bf0","#1c1530","#f7f1fd"], gradient:true },
+];
 
 const MOODS = [
   { e:"😄", l:"좋음" }, { e:"🥰", l:"행복" }, { e:"🙂", l:"보통" },
@@ -1513,6 +1521,39 @@ function DreamBoardPage({ dreams, setDreams }) {
 }
 
 /* ════════════════ 메뉴 편집 ════════════════ */
+/* ════════════════ 테마 설정 ════════════════ */
+function ThemePage({ mood, setMood, theme, setTheme }) {
+  return (
+    <div className="pg">
+      <PageHead icon={Palette} color="violet" title="테마 설정" sub="기분에 따라 색상 무드와 명도를 골라보세요" />
+
+      <section className="card theme-sec">
+        <div className="card-head"><div className="card-title">명도</div></div>
+        <div className="mode-toggle">
+          <button className={"mode-opt"+(theme==="light"?" on":"")} onClick={() => setTheme("light")}><Sun size={18} /> 라이트</button>
+          <button className={"mode-opt"+(theme==="dark"?" on":"")} onClick={() => setTheme("dark")}><Moon size={18} /> 다크</button>
+        </div>
+      </section>
+
+      <section className="card theme-sec">
+        <div className="card-head"><div className="card-title">색상 무드</div></div>
+        <div className="mood-grid">
+          {MOOD_THEMES.map((m) => (
+            <button key={m.id} className={"mood-card"+(mood===m.id?" on":"")} onClick={() => setMood(m.id)}>
+              <span className="mood-prev" style={{ background:m.swatch[theme==="light"?2:1] }}>
+                <span className="mp-dot" style={{ background: m.gradient ? `linear-gradient(135deg, ${m.swatch[0]}, #e85ec2)` : m.swatch[0] }} />
+              </span>
+              <span className="mood-info"><b>{m.label}</b><small>{m.sub}</small></span>
+              {mood===m.id && <span className="mood-check"><Check size={13} strokeWidth={3} /></span>}
+            </button>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+
 function MenuManager({ pages, setPages, setCustomData, onClose, currentPageId, setPage }) {
   const [editingPage, setEditingPage] = useState(null);
   const [delPage, setDelPage] = useState(null);
@@ -1595,6 +1636,8 @@ const MCustom = memo(CustomPage);
 /* ════════════════ 루트 앱 ════════════════ */
 export default function App() {
   const [theme, setTheme] = usePersistentState("theme", "dark");
+  const [mood, setMood] = usePersistentState("mood", "amber");
+  const cycleMood = () => setMood((m) => { const i = MOOD_THEMES.findIndex((x) => x.id === m); return MOOD_THEMES[(i + 1) % MOOD_THEMES.length].id; });
   const [page, setPage] = useState("dash");
   const [navOpen, setNavOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -1696,12 +1739,12 @@ export default function App() {
     window.scrollTo({ top:0 });
   };
   const visible = pages.filter((p) => !p.hidden);
-  const current = page === "dash" ? null : pages.find((p) => p.id === page);
-  const title = page === "dash" ? "대시보드" : (current ? current.label : "대시보드");
+  const current = (page === "dash" || page === "theme") ? null : pages.find((p) => p.id === page);
+  const title = page === "dash" ? "대시보드" : page === "theme" ? "테마 설정" : (current ? current.label : "대시보드");
   const setCustomItems = (id) => (u) => setCustomData((d) => ({ ...d, [id]: typeof u === "function" ? u(d[id] || []) : u }));
 
   return (
-    <div className="app" data-theme={theme}>
+    <div className="app" data-theme={theme} data-mood={mood}>
       <style>{STYLES}</style>
       <div className="shell">
 
@@ -1724,9 +1767,15 @@ export default function App() {
             ))}
             <button className="navbtn subtle" onClick={() => { setMenuOpen(true); setNavOpen(false); }}><Settings size={18} /> <span>메뉴 편집</span></button>
           </nav>
-          <button className="navbtn theme-row" onClick={() => setTheme((t) => t==="dark"?"light":"dark")}>
-            {theme==="dark" ? <Sun size={18} /> : <Moon size={18} />} <span>{theme==="dark"?"라이트 모드":"다크 모드"}</span>
-          </button>
+          <div className="theme-block">
+            <button className="navbtn theme-row" onClick={() => setTheme((t) => t==="dark"?"light":"dark")}>
+              {theme==="dark" ? <Sun size={18} /> : <Moon size={18} />} <span>{theme==="dark"?"라이트 모드":"다크 모드"}</span>
+            </button>
+            <button className="mood-dot-btn" onClick={cycleMood} aria-label="색상 테마 바꾸기" title="색상 테마 바꾸기">
+              <span className="mood-dot" style={{ background:VAR("accent") }} />
+            </button>
+          </div>
+          <button className="navbtn" onClick={() => { go("theme"); setNavOpen(false); }}><Palette size={18} /> <span>테마 설정</span></button>
           <button className="navbtn reset-row" onClick={() => { setResetOpen(true); setNavOpen(false); }}>
             <Trash2 size={18} /> <span>전체 초기화</span>
           </button>
@@ -1741,6 +1790,8 @@ export default function App() {
           </div>
 
           {(() => {
+            if (page === "theme")
+              return <ThemePage mood={mood} setMood={setMood} theme={theme} setTheme={setTheme} />;
             if (page === "dash" || !current)
               return <MDashboard go={go} now={now} profile={profile} mitsByDate={mitsByDate} setMitsByDate={setMitsByDate} todos={todos} setTodos={setTodos} habits={habits} setHabits={setHabits} events={events} diaries={diaries} metrics={metrics} books={books} dreams={dreams} />;
             if (current.kind === "builtin") {
@@ -1786,8 +1837,30 @@ export default function App() {
 const STYLES = `
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
 
-.app[data-theme="dark"]{ --bg:#14131a; --bg2:#1b1924; --card:#1e1c27; --card2:#252231; --inset:#191722; --border:#2d2a38; --border2:#39354a; --text:#edeaf3; --muted:#a29eb1; --faint:#6f6a7e; --accent:#f1b07f; --accent-ink:#2a1c10; --blue:#8db2f7; --rose:#f29bb6; --green:#8ad6aa; --gold:#f1cf86; --coral:#f0a387; --violet:#bfa4f5; --shadow:0 1px 0 rgba(255,255,255,.03),0 18px 40px -24px rgba(0,0,0,.7); }
-.app[data-theme="light"]{ --bg:#f4f1ec; --bg2:#efe9e0; --card:#ffffff; --card2:#faf7f2; --inset:#f2eee7; --border:#e7e1d6; --border2:#d9d2c5; --text:#2a2631; --muted:#6f6a78; --faint:#a8a2b0; --accent:#d8884a; --accent-ink:#fff7ef; --blue:#4f7ed4; --rose:#d4688d; --green:#3da670; --gold:#c79829; --coral:#d57051; --violet:#8a6fd0; --shadow:0 1px 0 rgba(255,255,255,.6),0 16px 34px -26px rgba(60,40,20,.45); }
+/* ─ 무드 04 — 앰버(기본): 따뜻한 베이지·살구 ─ */
+.app[data-mood="amber"][data-theme="dark"]{ --bg:#14131a; --bg2:#1b1924; --card:#1e1c27; --card2:#252231; --inset:#191722; --border:#2d2a38; --border2:#39354a; --text:#edeaf3; --muted:#a29eb1; --faint:#6f6a7e; --accent:#f1b07f; --accent-ink:#2a1c10; --blue:#8db2f7; --rose:#f29bb6; --green:#8ad6aa; --gold:#f1cf86; --coral:#f0a387; --violet:#bfa4f5; --shadow:0 1px 0 rgba(255,255,255,.03),0 18px 40px -24px rgba(0,0,0,.7); }
+.app[data-mood="amber"][data-theme="light"]{ --bg:#f4f1ec; --bg2:#efe9e0; --card:#ffffff; --card2:#faf7f2; --inset:#f2eee7; --border:#e7e1d6; --border2:#d9d2c5; --text:#2a2631; --muted:#6f6a78; --faint:#a8a2b0; --accent:#d8884a; --accent-ink:#fff7ef; --blue:#4f7ed4; --rose:#d4688d; --green:#3da670; --gold:#c79829; --coral:#d57051; --violet:#8a6fd0; --shadow:0 1px 0 rgba(255,255,255,.6),0 16px 34px -26px rgba(60,40,20,.45); }
+
+/* ─ 무드 02 — 블루그레이: 차분한 오피스 느낌 ─ */
+.app[data-mood="slate"][data-theme="dark"]{ --bg:#11151c; --bg2:#161b24; --card:#1b212d; --card2:#212836; --inset:#161b24; --border:#283040; --border2:#344052; --text:#e8edf5; --muted:#9aa5b5; --faint:#646e7e; --accent:#7ea8e0; --accent-ink:#0f2138; --blue:#7ea8e0; --rose:#e29bb0; --green:#7fcdb0; --gold:#e3c87f; --coral:#e4a07e; --violet:#a8a8e8; --shadow:0 1px 0 rgba(255,255,255,.03),0 18px 40px -24px rgba(0,0,0,.7); }
+.app[data-mood="slate"][data-theme="light"]{ --bg:#eef1f5; --bg2:#e6eaf0; --card:#ffffff; --card2:#f6f8fb; --inset:#eef1f5; --border:#dde2ea; --border2:#cbd2dd; --text:#1f2733; --muted:#5e6b7d; --faint:#9aa5b3; --accent:#3f6fb8; --accent-ink:#f3f8ff; --blue:#3f6fb8; --rose:#c25a7c; --green:#2f8f6c; --gold:#b08a2c; --coral:#c46c4a; --violet:#6f6fc4; --shadow:0 1px 0 rgba(255,255,255,.6),0 16px 34px -26px rgba(30,40,60,.35); }
+
+/* ─ 무드 03 — 포레스트: 자연·차분함 ─ */
+.app[data-mood="forest"][data-theme="dark"]{ --bg:#10160f; --bg2:#151d14; --card:#1b251a; --card2:#212c20; --inset:#161f15; --border:#283a26; --border2:#374e34; --text:#e7f0e2; --muted:#9eb098; --faint:#677d62; --accent:#8fc97a; --accent-ink:#11260c; --blue:#85b6d6; --rose:#dd9aa8; --green:#8fc97a; --gold:#dccb78; --coral:#dba074; --violet:#a8b698; --shadow:0 1px 0 rgba(255,255,255,.03),0 18px 40px -24px rgba(0,0,0,.7); }
+.app[data-mood="forest"][data-theme="light"]{ --bg:#f1f4ec; --bg2:#e9eee0; --card:#ffffff; --card2:#f6f9f2; --inset:#eef2e7; --border:#dee6d3; --border2:#cbd6bc; --text:#222b1e; --muted:#5e6d56; --faint:#97a78c; --accent:#4e8c3a; --accent-ink:#f3fbee; --blue:#3e7ca6; --rose:#b85b75; --green:#4e8c3a; --gold:#a98a2c; --coral:#b06a3e; --violet:#7c8a64; --shadow:0 1px 0 rgba(255,255,255,.6),0 16px 34px -26px rgba(30,45,20,.35); }
+
+/* ─ 무드 04 — 핑크라벤더: 발랄함 ─ */
+.app[data-mood="bloom"][data-theme="dark"]{ --bg:#181321; --bg2:#1f1828; --card:#251e30; --card2:#2c2438; --inset:#1f1828; --border:#382e47; --border2:#473a59; --text:#f2e9f7; --muted:#b2a3c0; --faint:#7a6b8c; --accent:#e892c9; --accent-ink:#2c1024; --blue:#9bb0f0; --rose:#e892c9; --green:#8fd6b8; --gold:#eed08c; --coral:#ef9fa6; --violet:#bda3f0; --shadow:0 1px 0 rgba(255,255,255,.03),0 18px 40px -24px rgba(0,0,0,.7); }
+.app[data-mood="bloom"][data-theme="light"]{ --bg:#fbf1f7; --bg2:#f7e9f2; --card:#ffffff; --card2:#fdf6fa; --inset:#f9eef5; --border:#f0dced; --border2:#e6c8e2; --text:#352a3c; --muted:#857190; --faint:#bba8c4; --accent:#c554a0; --accent-ink:#fff5fb; --blue:#5f74cf; --rose:#c554a0; --green:#3f9e78; --gold:#bb8f24; --coral:#cf6e7a; --violet:#8b66cf; --shadow:0 1px 0 rgba(255,255,255,.6),0 16px 34px -26px rgba(60,20,50,.3); }
+
+/* ─ 무드 05 — 아우로라: 보라→자홍 그라디언트 ─ */
+.app[data-mood="aurora"][data-theme="dark"]{ --bg:#100c1c; --bg2:#161024; --card:#1c1530; --card2:#231a3a; --inset:#161024; --border:#2c2147; --border2:#3a2c5c; --text:#efe9fb; --muted:#a99fc4; --faint:#6e6390; --accent:#a06bf0; --accent-ink:#1c0f33; --accent2:#e85ec2; --blue:#8c9af5; --rose:#e85ec2; --green:#7fd9b8; --gold:#e8c878; --coral:#ef8aa8; --violet:#a06bf0; --shadow:0 1px 0 rgba(255,255,255,.04),0 18px 44px -24px rgba(60,10,90,.55); }
+.app[data-mood="aurora"][data-theme="light"]{ --bg:#f7f1fd; --bg2:#f1e8fb; --card:#ffffff; --card2:#faf5fe; --inset:#f3ecfb; --border:#e7d9f6; --border2:#d8c2ef; --text:#2c2240; --muted:#75678f; --faint:#ad9fc8; --accent:#9050d8; --accent-ink:#fbf6ff; --accent2:#d83f9e; --blue:#5f6fd0; --rose:#d83f9e; --green:#3d9e7c; --gold:#b3892a; --coral:#d8678c; --violet:#9050d8; --shadow:0 1px 0 rgba(255,255,255,.6),0 16px 36px -26px rgba(70,20,100,.3); }
+
+/* 무드 미지정 시 기본값(amber)도 보장 */
+.app[data-theme="dark"]:not([data-mood]){ --bg:#14131a; --bg2:#1b1924; --card:#1e1c27; --card2:#252231; --inset:#191722; --border:#2d2a38; --border2:#39354a; --text:#edeaf3; --muted:#a29eb1; --faint:#6f6a7e; --accent:#f1b07f; --accent-ink:#2a1c10; --blue:#8db2f7; --rose:#f29bb6; --green:#8ad6aa; --gold:#f1cf86; --coral:#f0a387; --violet:#bfa4f5; --shadow:0 1px 0 rgba(255,255,255,.03),0 18px 40px -24px rgba(0,0,0,.7); }
+.app[data-theme="light"]:not([data-mood]){ --bg:#f4f1ec; --bg2:#efe9e0; --card:#ffffff; --card2:#faf7f2; --inset:#f2eee7; --border:#e7e1d6; --border2:#d9d2c5; --text:#2a2631; --muted:#6f6a78; --faint:#a8a2b0; --accent:#d8884a; --accent-ink:#fff7ef; --blue:#4f7ed4; --rose:#d4688d; --green:#3da670; --gold:#c79829; --coral:#d57051; --violet:#8a6fd0; --shadow:0 1px 0 rgba(255,255,255,.6),0 16px 34px -26px rgba(60,40,20,.45); }
+
 
 *{ box-sizing:border-box; }
 html,body{ margin:0; padding:0; }
@@ -1803,14 +1876,40 @@ button{ font-family:inherit; }
 .brand{ display:flex; align-items:center; gap:10px; padding:6px 10px 12px; }
 .side-sep{ height:1px; background:var(--border); margin:4px 8px 10px; }
 .brand-i{ width:32px; height:32px; border-radius:10px; background:var(--accent); display:grid; place-items:center; }
+.app[data-mood="aurora"] .brand-i{ background:linear-gradient(135deg, var(--accent), var(--accent2)); }
+.app[data-mood="aurora"] .btn.primary{ background:linear-gradient(135deg, var(--accent), var(--accent2)); }
+.app[data-mood="aurora"] .mood-dot-btn .mood-dot,
+.app[data-mood="aurora"] .mood-check{ background:linear-gradient(135deg, var(--accent), var(--accent2)); }
+.app[data-mood="aurora"] .mode-opt.on{ border-color:var(--accent); background:linear-gradient(135deg, color-mix(in srgb,var(--accent) 16%,transparent), color-mix(in srgb,var(--accent2) 16%,transparent)); color:var(--accent); }
+.app[data-mood="aurora"] .mood-card.on{ border-color:var(--accent); background:linear-gradient(135deg, color-mix(in srgb,var(--accent) 10%,transparent), color-mix(in srgb,var(--accent2) 10%,transparent)); }
 .brand-t{ font-family:'Fraunces',serif; font-weight:600; font-size:21px; }
 .nav{ display:flex; flex-direction:column; gap:3px; flex:1; }
 .navbtn{ display:flex; align-items:center; gap:12px; padding:11px 12px; border-radius:12px; border:none; background:transparent; color:var(--muted); font-size:14px; font-weight:600; cursor:pointer; transition:.15s; text-align:left; width:100%; }
 .navbtn:hover{ background:var(--inset); color:var(--text); }
 .navbtn.on{ background:color-mix(in srgb,var(--accent) 14%,transparent); color:var(--accent); }
-.theme-row{ margin-top:4px; border-top:1px solid var(--border); border-radius:0; padding-top:14px; }
+.theme-row{ margin-top:4px; border-top:1px solid var(--border); border-radius:0; padding-top:14px; flex:1; }
+.theme-block{ display:flex; align-items:stretch; gap:6px; }
+.mood-dot-btn{ flex:none; width:38px; margin-top:4px; border:none; background:transparent; border-radius:11px; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:.15s; }
+.mood-dot-btn:hover{ background:var(--inset); }
+.mood-dot{ width:15px; height:15px; border-radius:99px; box-shadow:0 0 0 3px color-mix(in srgb, currentColor 0%, transparent), 0 0 0 1px var(--border2) inset; transition:background .3s; }
 .reset-row{ color:var(--coral); }
 .reset-row:hover{ background:color-mix(in srgb,var(--coral) 12%,transparent); color:var(--coral); }
+
+/* 테마 설정 페이지 */
+.theme-sec{ margin-bottom:16px; }
+.mode-toggle{ display:flex; gap:10px; }
+.mode-opt{ flex:1; height:52px; border-radius:14px; border:1.5px solid var(--border); background:var(--inset); color:var(--muted); font-family:inherit; font-size:14px; font-weight:700; display:flex; align-items:center; justify-content:center; gap:8px; cursor:pointer; transition:.15s; }
+.mode-opt.on{ border-color:var(--accent); color:var(--accent); background:color-mix(in srgb,var(--accent) 12%,transparent); }
+.mood-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:12px; }
+@media(max-width:560px){ .mood-grid{ grid-template-columns:1fr; } }
+.mood-card{ position:relative; display:flex; align-items:center; gap:13px; padding:13px; border-radius:15px; border:1.5px solid var(--border); background:var(--inset); cursor:pointer; text-align:left; transition:.15s; font-family:inherit; }
+.mood-card.on{ border-color:var(--accent); background:color-mix(in srgb,var(--accent) 9%,transparent); }
+.mood-prev{ width:44px; height:44px; border-radius:12px; flex:none; display:flex; align-items:center; justify-content:center; border:1px solid var(--border2); }
+.mp-dot{ width:16px; height:16px; border-radius:99px; box-shadow:0 0 0 1px rgba(0,0,0,.15); }
+.mood-info{ display:flex; flex-direction:column; gap:2px; color:var(--text); }
+.mood-info b{ font-size:14px; font-weight:700; }
+.mood-info small{ font-size:11.5px; color:var(--faint); font-weight:600; }
+.mood-check{ position:absolute; top:10px; right:10px; width:20px; height:20px; border-radius:99px; background:var(--accent); color:var(--accent-ink); display:flex; align-items:center; justify-content:center; }
 .nav-bd{ position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:40; }
 
 .main2{ flex:1; min-width:0; }
