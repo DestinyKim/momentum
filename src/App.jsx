@@ -5,7 +5,7 @@ import {
   ChevronLeft, ChevronRight, Pencil, Trash2, Star, ArrowDownRight,
   ArrowUpRight, Clock, Leaf, ImagePlus, Upload,
   Settings, Eye, EyeOff, ArrowUp, ArrowDown, ListChecks, NotebookPen,
-  Heart, ShoppingCart, Dumbbell, Plane, Music, Coffee, Camera, Briefcase, Gift, TrendingUp, Palette,
+  Heart, ShoppingCart, Dumbbell, Plane, Music, Coffee, Camera, Briefcase, Gift, TrendingUp, Palette, CalendarClock,
 } from "lucide-react";
 
 /* ════════════════════════════════════════════════════════════════
@@ -408,7 +408,7 @@ const Empty = ({ icon:Icon, text }) => (
 );
 
 /* ════════════════ 페이지: 일정 ════════════════ */
-function SchedulePage({ events, setEvents }) {
+function SchedulePage({ events, setEvents, setTodos }) {
   const [view, setView] = useState({ y: TODAY.y, m: TODAY.m });
   const [sel, setSel] = useState(TODAY_KEY);
   const [editing, setEditing] = useState(null);
@@ -431,6 +431,10 @@ function SchedulePage({ events, setEvents }) {
     if (editing === "new") setEvents((p) => [...p, { ...form, id: uid() }]);
     else setEvents((p) => p.map((x) => x.id === editing ? { ...form, id: editing } : x));
     setEditing(null);
+  };
+  const sendToTodo = (e) => {
+    setTodos((p) => [...p, { id:uid(), title:e.title, cat:e.cat==="업무"||e.cat==="공부"?e.cat:"개인", date:e.date, done:false }]);
+    setEvents((p) => p.filter((x) => x.id !== e.id));
   };
 
   return (
@@ -497,6 +501,7 @@ function SchedulePage({ events, setEvents }) {
                   </div>
                   <span className="tag" style={{ color: catVar(e.cat), background: tint(catVar(e.cat),14) }}>{e.cat}</span>
                   <div className="rowact">
+                    <button onClick={() => sendToTodo(e)} aria-label="할 일로 보내기" title="할 일로 보내기"><ListTodo size={14} /></button>
                     <button onClick={() => openEdit(e)} aria-label="수정"><Pencil size={14} /></button>
                     <button onClick={() => setDel(e)} aria-label="삭제"><Trash2 size={14} /></button>
                   </div>
@@ -534,34 +539,58 @@ function SchedulePage({ events, setEvents }) {
 }
 
 /* ════════════════ 페이지: 할 일 ════════════════ */
-function TodoPage({ todos, setTodos }) {
-  const [filter, setFilter] = useState("all");
+function TodoPage({ todos, setTodos, setEvents }) {
+  const [filter, setFilter] = useState("today");
   const [quick, setQuick] = useState("");
   const [editing, setEditing] = useState(null);
   const [del, setDel] = useState(null);
-  const [form, setForm] = useState({ title:"", cat:"개인" });
+  const [postponeId, setPostponeId] = useState(null);
+  const [postDate, setPostDate] = useState(TODAY_KEY);
+  const empty = { title:"", cat:"개인", date:TODAY_KEY };
+  const [form, setForm] = useState(empty);
 
-  const shown = todos.filter((t) => filter === "all" ? true : filter === "active" ? !t.done : t.done);
-  const doneN = todos.filter((t) => t.done).length;
+  const overdue = (t) => t.date && t.date < TODAY_KEY && !t.done;
+  const inFilter = (t) => {
+    if (filter === "all") return true;
+    if (filter === "today") return t.date === TODAY_KEY || overdue(t);
+    if (filter === "upcoming") return t.date && t.date > TODAY_KEY;
+    if (filter === "noDate") return !t.date;
+    if (filter === "done") return t.done;
+    return true;
+  };
+  const shown = todos.filter(inFilter).slice().sort((a,b) => {
+    if (a.done !== b.done) return a.done ? 1 : -1;
+    return (a.date||"9999").localeCompare(b.date||"9999");
+  });
+  const todayCount = todos.filter((t) => t.date === TODAY_KEY || overdue(t)).length;
+  const doneN = todayCount ? todos.filter((t) => (t.date===TODAY_KEY||overdue(t)) && t.done).length : todos.filter((t) => t.done).length;
+  const todayTotal = todayCount || todos.length;
 
-  const addQuick = () => { if (!quick.trim()) return; setTodos((p) => [...p, { id:uid(), title:quick.trim(), cat:"개인", done:false }]); setQuick(""); };
-  const openEdit = (t) => { setForm({ title:t.title, cat:t.cat }); setEditing(t.id); };
-  const save = () => { if (!form.title.trim()) return; setTodos((p) => p.map((x) => x.id === editing ? { ...x, ...form } : x)); setEditing(null); };
+  const addQuick = () => { if (!quick.trim()) return; setTodos((p) => [...p, { id:uid(), title:quick.trim(), cat:"개인", date:TODAY_KEY, done:false }]); setQuick(""); };
+  const openEdit = (t) => { setForm({ title:t.title, cat:t.cat, date:t.date||"" }); setEditing(t.id); };
+  const save = () => { if (!form.title.trim()) return; setTodos((p) => p.map((x) => x.id === editing ? { ...x, ...form, date: form.date || "" } : x)); setEditing(null); };
+  const openPostpone = (t, def) => { setPostponeId(t.id); setPostDate(def || TODAY_KEY); };
+  const tomorrowKey = () => { const d = new Date(); d.setDate(d.getDate()+1); return keyOf(d.getFullYear(), d.getMonth(), d.getDate()); };
+  const applyPostpone = () => { if (!postponeId) return; setTodos((p) => p.map((x) => x.id===postponeId?{...x,date:postDate}:x)); setPostponeId(null); };
+  const sendToSchedule = (t) => {
+    setEvents((p) => [...p, { id:uid(), title:t.title, date:t.date||TODAY_KEY, time:"09:00", cat:t.cat==="업무"||t.cat==="공부"?t.cat:"개인", memo:"" }]);
+    setTodos((p) => p.filter((x) => x.id !== t.id));
+  };
 
   return (
     <div className="pg">
-      <PageHead icon={ListTodo} color="accent" title="할 일" sub={`${todos.length}개 중 ${doneN}개 완료`} />
+      <PageHead icon={ListTodo} color="accent" title="할 일" sub={`${todayTotal}개 중 ${doneN}개 완료`} />
 
       {(() => {
-        const pct = todos.length ? Math.round(doneN / todos.length * 100) : 0;
+        const pct = todayTotal ? Math.round(doneN / todayTotal * 100) : 0;
         const wd = weekDays();
-        const week = wd.map((d) => ({ label:d.label, value: d.today ? doneN : 0, hl: d.today }));
+        const week = wd.map((d) => ({ label:d.label, value: d.today ? doneN : todos.filter((t) => t.date===d.key && t.done).length, hl: d.today }));
         return (
           <section className="card insight">
-            <TargetRing value={doneN} max={todos.length || 1} caption={pct + "%"} sub={`${doneN}/${todos.length} 완료`} color="var(--accent)" />
+            <TargetRing value={doneN} max={todayTotal || 1} caption={pct + "%"} sub={`${doneN}/${todayTotal} 완료`} color="var(--accent)" />
             <div className="ins-text">
-              <div className="ins-cap">{pct === 100 ? "오늘 할 일을 모두 끝냈어요! 🎯" : <>목표까지 <b>{todos.length - doneN}개</b> 남았어요</>}</div>
-              <div className="ins-sub">오늘 완료한 할 일이에요. 매일 기록이 쌓여 흐름이 됩니다.</div>
+              <div className="ins-cap">{todayTotal===0 ? "오늘 할 일을 추가해보세요" : pct === 100 ? "오늘 할 일을 모두 끝냈어요! 🎯" : <>목표까지 <b>{todayTotal - doneN}개</b> 남았어요</>}</div>
+              <div className="ins-sub">오늘(+미룬 항목) 기준 완료율이에요. 이번 주 흐름도 함께 보여요.</div>
               <div className="mini-bars"><Bars data={week} color="var(--accent)" height={80} /></div>
             </div>
           </section>
@@ -569,16 +598,14 @@ function TodoPage({ todos, setTodos }) {
       })()}
 
       <div className="adder big">
-        <input className="inp" placeholder="할 일을 입력하고 Enter로 추가하세요" value={quick}
+        <input className="inp" placeholder="할 일을 입력하고 Enter로 추가하세요 (오늘 날짜로 추가됨)" value={quick}
           onChange={(e) => setQuick(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addQuick()} />
         <button className="btn-icn" onClick={addQuick}><Plus size={18} strokeWidth={2.5} /></button>
       </div>
 
-      <div className="tabs">
-        {[["all","전체"],["active","진행 중"],["done","완료"]].map(([k,l]) => (
-          <button key={k} className={"tab"+(filter===k?" on":"")} onClick={() => setFilter(k)}>{l}
-            <span className="tab-n">{k==="all"?todos.length:k==="active"?todos.length-doneN:doneN}</span>
-          </button>
+      <div className="tabs scrollx">
+        {[["today","오늘"],["upcoming","예정"],["noDate","날짜 없음"],["all","전체"],["done","완료"]].map(([k,l]) => (
+          <button key={k} className={"tab"+(filter===k?" on":"")} onClick={() => setFilter(k)}>{l}</button>
         ))}
       </div>
 
@@ -586,11 +613,18 @@ function TodoPage({ todos, setTodos }) {
         {shown.length === 0 ? <Empty icon={ListTodo} text="표시할 할 일이 없어요" /> : (
           <div className="todos">
             {shown.map((t) => (
-              <div key={t.id} className={"todo"+(t.done?" done":"")}>
+              <div key={t.id} className={"todo"+(t.done?" done":"")+(overdue(t)?" overdue":"")}>
                 <button className={"box"+(t.done?" on":"")} onClick={() => setTodos((p) => p.map((x) => x.id===t.id?{...x,done:!x.done}:x))} aria-label="완료 토글"><Check size={13} strokeWidth={3} /></button>
-                <span className="tx">{t.title}</span>
+                <div className="todo-mid">
+                  <span className="tx">{t.title}</span>
+                  <span className="todo-date-row">
+                    {t.date ? <span className={"todo-date"+(overdue(t)?" overdue":"")}>{overdue(t) && <Clock size={11} />} {t.date===TODAY_KEY?"오늘":t.date===tomorrowKey()?"내일":t.date.slice(5).replace("-",".")}{overdue(t) && " · 지남"}</span> : <span className="todo-date none">날짜 없음</span>}
+                  </span>
+                </div>
                 <span className="tag" style={{ color: catVar(t.cat), background: tint(catVar(t.cat),14) }}>{t.cat}</span>
                 <div className="rowact">
+                  {!t.done && <button onClick={() => openPostpone(t, tomorrowKey())} aria-label="미루기" title="다른 날로 미루기"><CalendarClock size={14} /></button>}
+                  <button onClick={() => sendToSchedule(t)} aria-label="일정으로 보내기" title="일정으로 보내기"><CalendarIcon size={14} /></button>
                   <button onClick={() => openEdit(t)} aria-label="수정"><Pencil size={14} /></button>
                   <button onClick={() => setDel(t)} aria-label="삭제"><Trash2 size={14} /></button>
                 </div>
@@ -604,8 +638,19 @@ function TodoPage({ todos, setTodos }) {
         <Modal title="할 일 수정" onClose={() => setEditing(null)}
           footer={<><button className="btn ghost" onClick={() => setEditing(null)}>취소</button><button className="btn primary" onClick={save}><Check size={15} /> 저장</button></>}>
           <Row label="내용"><input className="inp" autoFocus value={form.title} onChange={(e) => setForm({ ...form, title:e.target.value })} /></Row>
+          <Row label="날짜 (선택)"><input className="inp" type="date" value={form.date} onChange={(e) => setForm({ ...form, date:e.target.value })} /></Row>
           <Row label="분류"><div className="chips">{["업무","개인","건강","공부","생활"].map((c) => (
             <button key={c} className={"chip-b"+(form.cat===c?" on":"")} style={form.cat===c?{borderColor:catVar(c),color:catVar(c),background:tint(catVar(c),14)}:{}} onClick={() => setForm({ ...form, cat:c })}>{c}</button>))}</div></Row>
+        </Modal>
+      )}
+      {postponeId != null && (
+        <Modal title="다른 날로 미루기" onClose={() => setPostponeId(null)}
+          footer={<><button className="btn ghost" onClick={() => setPostponeId(null)}>취소</button><button className="btn primary" onClick={applyPostpone}><Check size={15} /> 미루기</button></>}>
+          <div className="postpone-quick">
+            <button className="btn ghost sm" onClick={() => setPostDate(tomorrowKey())}>내일</button>
+            <button className="btn ghost sm" onClick={() => { const d = new Date(); d.setDate(d.getDate()+7); setPostDate(keyOf(d.getFullYear(), d.getMonth(), d.getDate())); }}>다음 주</button>
+          </div>
+          <Row label="지정일"><input className="inp" type="date" value={postDate} onChange={(e) => setPostDate(e.target.value)} /></Row>
         </Modal>
       )}
       {del && <Confirm text={`"${del.title}"을(를) 삭제할까요?`} onCancel={() => setDel(null)} onOk={() => { setTodos((p) => p.filter((x) => x.id !== del.id)); setDel(null); }} />}
@@ -1118,7 +1163,9 @@ function DashboardPage({ go, now, profile, mitsByDate, setMitsByDate, todos, set
   const fmtTime = now.toLocaleTimeString("ko-KR", { hour:"2-digit", minute:"2-digit", hour12:true });
   const fmtDate = now.toLocaleDateString("ko-KR", { month:"long", day:"numeric", weekday:"long" });
 
-  const doneN = todos.filter((t) => t.done).length;
+  const todayTodos = todos.filter((t) => t.date === TODAY_KEY || (t.date && t.date < TODAY_KEY && !t.done));
+  const todayDoneN = todayTodos.filter((t) => t.done).length;
+  const doneN = todayTodos.length ? todayDoneN : todos.filter((t) => t.done).length;
   const habitN = habits.filter((h) => h.on).length;
   const mitDone = mits.filter((m) => m.done).length;
   const todayDiary = diaries.find((d) => d.date === TODAY_KEY);
@@ -1129,7 +1176,7 @@ function DashboardPage({ go, now, profile, mitsByDate, setMitsByDate, todos, set
   const metricPct = metrics.length ? Math.round(metrics.reduce((s,m) => s + (m.target>0?Math.min(100,Math.round(metricCur(m)/m.target*100)):0), 0) / metrics.length) : 0;
   const addMit = () => { if (!mitText.trim() || mits.length >= 3) return; setMits((p) => [...p, { id:uid(), text:mitText.trim(), done:false }]); setMitText(""); };
 
-  const score = Math.round((((todos.length?doneN/todos.length:0) + (habits.length?habitN/habits.length:0) + (mits.length?mitDone/mits.length:0)) / 3) * 100);
+  const score = Math.round((((todayTodos.length?doneN/todayTodos.length:0) + (habits.length?habitN/habits.length:0) + (mits.length?mitDone/mits.length:0)) / 3) * 100);
   const weekScore = weekDays().map((d) => {
     const items = mitsByDate[d.key] || [];
     const v = items.length ? Math.round(items.filter((x) => x.done).length / items.length * 100) : 0;
@@ -1275,7 +1322,7 @@ function DashboardPage({ go, now, profile, mitsByDate, setMitsByDate, todos, set
       <section className="stats">
         <button className="stat" onClick={() => go("todo")}>
           <span className="lbl"><span className="chip" style={{ background:tint("var(--accent)",16) }}><ListTodo size={14} color="var(--accent)" /></span> 오늘 할 일</span>
-          <span className="val">{doneN}<small> / {todos.length}</small></span></button>
+          <span className="val">{doneN}<small> / {todayTodos.length}</small></span></button>
         <button className="stat" onClick={() => go("habit")}>
           <span className="lbl"><span className="chip" style={{ background:tint("var(--green)",16) }}><Target size={14} color="var(--green)" /></span> 습관 달성</span>
           <span className="val">{habitN}<small> / {habits.length}</small></span></button>
@@ -1305,14 +1352,16 @@ function DashboardPage({ go, now, profile, mitsByDate, setMitsByDate, todos, set
         {/* 오늘 할 일 (대시보드에서 바로 체크 가능) */}
         <section className="card a-todo">
           <SecHead icon={ListTodo} color="accent" title="오늘 할 일" page="todo" />
-          <div className="progress"><i style={{ width:`${todos.length?(doneN/todos.length)*100:0}%` }} /></div>
-          <div className="todos">{todos.slice(0,5).map((t) => (
-            <div key={t.id} className={"todo"+(t.done?" done":"")}>
+          <div className="progress"><i style={{ width:`${todayTodos.length?(todayDoneN/todayTodos.length)*100:0}%` }} /></div>
+          {todayTodos.length === 0 ? <Empty icon={ListTodo} text="오늘로 잡힌 할 일이 없어요" /> : (
+          <div className="todos">{todayTodos.slice(0,5).map((t) => (
+            <div key={t.id} className={"todo"+(t.done?" done":"")+(t.date && t.date < TODAY_KEY && !t.done?" overdue":"")}>
               <button className={"box"+(t.done?" on":"")} onClick={() => setTodos((p) => p.map((x) => x.id===t.id?{...x,done:!x.done}:x))}><Check size={13} strokeWidth={3} /></button>
               <span className="tx">{t.title}</span>
               <span className="tag" style={{ color:catVar(t.cat), background:tint(catVar(t.cat),14) }}>{t.cat}</span>
             </div>))}
           </div>
+          )}
         </section>
 
         {/* 습관 */}
@@ -1651,11 +1700,11 @@ export default function App() {
 
   /* 초기 데모 데이터 (Supabase 연동 시 이 부분을 fetch 결과로 대체) */
   const [todos, setTodos] = usePersistentState("todos", [
-    { id:1, title:"스탠드업 미팅 준비", done:true, cat:"업무" },
-    { id:2, title:"운동 30분", done:false, cat:"건강" },
-    { id:3, title:"전기요금 납부", done:false, cat:"생활" },
-    { id:4, title:"사이드 프로젝트 PR 리뷰", done:false, cat:"공부" },
-    { id:5, title:"엄마한테 전화하기", done:false, cat:"개인" },
+    { id:1, title:"스탠드업 미팅 준비", done:true, cat:"업무", date:TODAY_KEY },
+    { id:2, title:"운동 30분", done:false, cat:"건강", date:TODAY_KEY },
+    { id:3, title:"전기요금 납부", done:false, cat:"생활", date:TODAY_KEY },
+    { id:4, title:"사이드 프로젝트 PR 리뷰", done:false, cat:"공부", date:"" },
+    { id:5, title:"엄마한테 전화하기", done:false, cat:"개인", date:TODAY_KEY },
   ]);
   const [events, setEvents] = usePersistentState("events", [
     { id:11, title:"팀 회의", date:TODAY_KEY, time:"10:00", cat:"업무", memo:"분기 회고" },
@@ -1795,8 +1844,8 @@ export default function App() {
             if (page === "dash" || !current)
               return <MDashboard go={go} now={now} profile={profile} mitsByDate={mitsByDate} setMitsByDate={setMitsByDate} todos={todos} setTodos={setTodos} habits={habits} setHabits={setHabits} events={events} diaries={diaries} metrics={metrics} books={books} dreams={dreams} />;
             if (current.kind === "builtin") {
-              if (current.key === "cal")    return <MSchedule events={events} setEvents={setEvents} />;
-              if (current.key === "todo")   return <MTodo todos={todos} setTodos={setTodos} />;
+              if (current.key === "cal")    return <MSchedule events={events} setEvents={setEvents} setTodos={setTodos} />;
+              if (current.key === "todo")   return <MTodo todos={todos} setTodos={setTodos} setEvents={setEvents} />;
               if (current.key === "habit")  return <MHabits habits={habits} setHabits={setHabits} />;
               if (current.key === "diary")  return <MDiary diaries={diaries} setDiaries={setDiaries} />;
               if (current.key === "metric") return <MMetrics metrics={metrics} setMetrics={setMetrics} />;
@@ -1998,11 +2047,22 @@ button{ font-family:inherit; }
 .todos{ display:flex; flex-direction:column; gap:2px; }
 .todo{ display:flex; align-items:center; gap:11px; padding:9px 8px; border-radius:11px; transition:.14s; }
 .todo:hover{ background:var(--inset); }
+.todo.overdue{ background:color-mix(in srgb,var(--coral) 7%,transparent); }
 .box{ width:21px; height:21px; border-radius:7px; border:2px solid var(--border2); display:grid; place-items:center; cursor:pointer; flex:none; color:transparent; transition:.16s; }
 .box:hover{ border-color:var(--accent); }
 .box.on{ background:var(--accent); border-color:var(--accent); color:var(--accent-ink); }
-.todo .tx{ font-size:14px; font-weight:500; flex:1; min-width:0; }
+.todo-mid{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.todo .tx{ font-size:14px; font-weight:500; }
 .todo.done .tx{ color:var(--faint); text-decoration:line-through; }
+.todo-date-row{ display:flex; }
+.todo-date{ font-size:11px; font-weight:700; color:var(--faint); display:inline-flex; align-items:center; gap:3px; }
+.todo-date.overdue{ color:var(--coral); }
+.todo-date.none{ color:var(--faint); opacity:.6; }
+.tabs.scrollx{ overflow-x:auto; flex-wrap:nowrap; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+.tabs.scrollx::-webkit-scrollbar{ display:none; }
+.tabs.scrollx .tab{ flex:none; }
+.postpone-quick{ display:flex; gap:8px; margin-bottom:4px; }
+.postpone-quick .btn{ flex:1; justify-content:center; }
 
 /* 습관 */
 .hgrid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:14px; }
