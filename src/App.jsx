@@ -408,7 +408,7 @@ const Empty = ({ icon:Icon, text }) => (
 );
 
 /* ════════════════ 페이지: 일정 ════════════════ */
-function SchedulePage({ events, setEvents, setTodos }) {
+function SchedulePage({ events, setEvents, todos, setTodos }) {
   const [view, setView] = useState({ y: TODAY.y, m: TODAY.m });
   const [sel, setSel] = useState(TODAY_KEY);
   const [editing, setEditing] = useState(null);
@@ -422,7 +422,13 @@ function SchedulePage({ events, setEvents, setTodos }) {
     events.forEach((e) => { (map[e.date] = map[e.date] || []).push(e); });
     return map;
   }, [events]);
+  const todoByDay = useMemo(() => {
+    const map = {};
+    todos.forEach((t) => { if (t.date) (map[t.date] = map[t.date] || []).push(t); });
+    return map;
+  }, [todos]);
   const dayList = (byDay[sel] || []).slice().sort((a, b) => a.time.localeCompare(b.time));
+  const dayTodos = (todoByDay[sel] || []).slice().sort((a,b) => a.done - b.done);
 
   const openNew = () => { setForm({ ...empty, date: sel }); setEditing("new"); };
   const openEdit = (e) => { setForm({ ...e }); setEditing(e.id); };
@@ -436,10 +442,11 @@ function SchedulePage({ events, setEvents, setTodos }) {
     setTodos((p) => [...p, { id:uid(), title:e.title, cat:e.cat==="업무"||e.cat==="공부"?e.cat:"개인", date:e.date, done:false }]);
     setEvents((p) => p.filter((x) => x.id !== e.id));
   };
+  const toggleTodo = (id) => setTodos((p) => p.map((x) => x.id===id?{...x,done:!x.done}:x));
 
   return (
     <div className="pg">
-      <PageHead icon={CalendarIcon} color="blue" title="일정" sub="이번 달 일정을 관리하세요"
+      <PageHead icon={CalendarIcon} color="blue" title="일정" sub="이번 달 일정과 그날의 할 일을 함께 보세요"
         action={<button className="btn primary" onClick={openNew}><Plus size={16} /> 일정 추가</button>} />
 
       {(() => {
@@ -470,29 +477,34 @@ function SchedulePage({ events, setEvents, setTodos }) {
               const isToday = c.cur && k === TODAY_KEY;
               const isSel = c.cur && k === sel;
               const dots = c.cur ? byDay[k] : null;
+              const tDots = c.cur ? todoByDay[k] : null;
               return (
                 <div key={i} className={"cell"+(c.cur?"":" dim")+(isToday?" today":"")+(isSel&&!isToday?" sel":"")}
                   onClick={() => c.cur && setSel(k)}>
                   {c.d}
-                  {dots && <span className="dots">{dots.slice(0,3).map((e,j) => <i key={j} className="dot" style={isToday?{}:{background:catVar(e.cat)}} />)}</span>}
+                  {(dots || tDots) && <span className="dots">
+                    {dots && dots.slice(0,2).map((e,j) => <i key={"e"+j} className="dot" style={isToday?{}:{background:catVar(e.cat)}} />)}
+                    {tDots && tDots.slice(0,1).map((t,j) => <i key={"t"+j} className="dot dot-todo" style={isToday?{}:{}} />)}
+                  </span>}
                 </div>
               );
             })}
           </div>
+          <div className="cal-legend"><span><i className="dot" style={{ background:"var(--blue)" }} /> 일정</span><span><i className="dot dot-todo" /> 할 일</span></div>
         </section>
 
         <section className="card">
           <div className="card-head">
             <div className="card-title">
               <span className="icn" style={{ background: tint("var(--blue)",16) }}><Clock size={16} color="var(--blue)" /></span>
-              {sel === TODAY_KEY ? "오늘" : sel.slice(5).replace("-",".")} 일정
+              {sel === TODAY_KEY ? "오늘" : sel.slice(5).replace("-",".")}
             </div>
-            <span className="meta">{dayList.length}건</span>
+            <span className="meta">{dayList.length + dayTodos.length}건</span>
           </div>
-          {dayList.length === 0 ? <Empty icon={CalendarIcon} text="이 날짜에 등록된 일정이 없어요" /> : (
+          {dayList.length === 0 && dayTodos.length === 0 ? <Empty icon={CalendarIcon} text="이 날짜에 등록된 일정·할 일이 없어요" /> : (
             <div className="ev-list">
               {dayList.map((e) => (
-                <div key={e.id} className="ev">
+                <div key={"e"+e.id} className="ev">
                   <span className="ev-bar" style={{ background: catVar(e.cat) }} />
                   <div className="ev-time">{e.time}</div>
                   <div className="ev-mid">
@@ -507,6 +519,18 @@ function SchedulePage({ events, setEvents, setTodos }) {
                   </div>
                 </div>
               ))}
+              {dayTodos.length > 0 && (
+                <div className="ev-todo-group">
+                  <div className="ev-todo-label"><ListTodo size={12} /> 이 날의 할 일</div>
+                  {dayTodos.map((t) => (
+                    <div key={"t"+t.id} className={"ev ev-todo"+(t.done?" done":"")}>
+                      <button className={"box"+(t.done?" on":"")} onClick={() => toggleTodo(t.id)} aria-label="완료 토글"><Check size={12} strokeWidth={3} /></button>
+                      <div className="ev-mid"><div className="ev-title">{t.title}</div></div>
+                      <span className="tag" style={{ color: catVar(t.cat), background: tint(catVar(t.cat),14) }}>{t.cat}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </section>
@@ -1844,7 +1868,7 @@ export default function App() {
             if (page === "dash" || !current)
               return <MDashboard go={go} now={now} profile={profile} mitsByDate={mitsByDate} setMitsByDate={setMitsByDate} todos={todos} setTodos={setTodos} habits={habits} setHabits={setHabits} events={events} diaries={diaries} metrics={metrics} books={books} dreams={dreams} />;
             if (current.kind === "builtin") {
-              if (current.key === "cal")    return <MSchedule events={events} setEvents={setEvents} setTodos={setTodos} />;
+              if (current.key === "cal")    return <MSchedule events={events} setEvents={setEvents} todos={todos} setTodos={setTodos} />;
               if (current.key === "todo")   return <MTodo todos={todos} setTodos={setTodos} setEvents={setEvents} />;
               if (current.key === "habit")  return <MHabits habits={habits} setHabits={setHabits} />;
               if (current.key === "diary")  return <MDiary diaries={diaries} setDiaries={setDiaries} />;
@@ -2027,6 +2051,12 @@ button{ font-family:inherit; }
 .cell .dots{ position:absolute; bottom:5px; display:flex; gap:3px; }
 .cell .dot{ width:4px; height:4px; border-radius:99px; }
 .cell.today .dot{ background:var(--accent-ink); opacity:.6; }
+.dot.dot-todo{ width:4px; height:4px; border-radius:1px; background:var(--gold); }
+.cell.today .dot.dot-todo{ background:var(--accent-ink); opacity:.85; }
+.cal-legend{ display:flex; gap:16px; margin-top:11px; padding-top:11px; border-top:1px solid var(--border); }
+.cal-legend span{ display:inline-flex; align-items:center; gap:6px; font-size:11.5px; color:var(--faint); font-weight:600; }
+.cal-legend .dot{ width:6px; height:6px; }
+.cal-legend .dot-todo{ border-radius:2px; background:var(--gold); }
 
 /* 일정 리스트 */
 .ev-list{ display:flex; flex-direction:column; gap:4px; }
@@ -2038,6 +2068,10 @@ button{ font-family:inherit; }
 .ev-mid{ flex:1; min-width:0; }
 .ev-title{ font-size:14px; font-weight:600; }
 .ev-memo{ font-size:12px; color:var(--faint); margin-top:1px; }
+.ev-todo-group{ margin-top:8px; padding-top:10px; border-top:1px dashed var(--border); display:flex; flex-direction:column; gap:3px; }
+.ev-todo-label{ display:flex; align-items:center; gap:6px; font-size:11.5px; font-weight:700; color:var(--faint); padding:0 8px 6px; }
+.ev.ev-todo{ padding:8px; }
+.ev.ev-todo.done .ev-title{ color:var(--faint); text-decoration:line-through; }
 .ev.mini{ padding:9px 6px; }
 .tag{ font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:99px; flex:none; white-space:nowrap; }
 
