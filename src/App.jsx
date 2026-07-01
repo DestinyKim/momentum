@@ -5,7 +5,7 @@ import {
   ChevronLeft, ChevronRight, Pencil, Trash2, Star, ArrowDownRight,
   ArrowUpRight, Clock, Leaf, ImagePlus, Upload,
   Settings, Eye, EyeOff, ArrowUp, ArrowDown, ListChecks, NotebookPen,
-  Heart, ShoppingCart, Dumbbell, Plane, Music, Coffee, Camera, Briefcase, Gift, TrendingUp, Palette, CalendarClock,
+  Heart, ShoppingCart, Dumbbell, Plane, Music, Coffee, Camera, Briefcase, Gift, TrendingUp, Palette, CalendarClock, Download,
 } from "lucide-react";
 
 /* ════════════════════════════════════════════════════════════════
@@ -1811,6 +1811,46 @@ export default function App() {
     setResetOpen(false); setNavOpen(false); setMenuOpen(false); setPage("dash");
     window.scrollTo({ top:0 });
   };
+
+  const exportData = () => {
+    const data = { _app:"momentum", _version:1, exportedAt:new Date().toISOString(),
+      theme, mood, pages, customData, profile, todos, events, habits, diaries, mitsByDate, metrics, txs, books, dreams };
+    try {
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type:"application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const d = new Date();
+      a.href = url;
+      a.download = `momentum-backup-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}.json`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) { alert("내보내기에 실패했어요. 다시 시도해 주세요."); }
+  };
+
+  const applyImport = (data) => {
+    if (!data || typeof data !== "object") return false;
+    const set = (v, fn) => { if (v !== undefined) fn(v); };
+    set(data.theme, setTheme); set(data.mood, setMood);
+    set(data.pages, setPages); set(data.customData, setCustomData); set(data.profile, setProfile);
+    set(data.todos, setTodos); set(data.events, setEvents); set(data.habits, setHabits);
+    set(data.diaries, setDiaries); set(data.mitsByDate, setMitsByDate); set(data.metrics, setMetrics);
+    set(data.txs, setTxs); set(data.books, setBooks); set(data.dreams, setDreams);
+    return true;
+  };
+  const importData = (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(reader.result);
+        if (data._app && data._app !== "momentum") { if (!confirm("이 파일은 Momentum 백업이 아닐 수 있어요. 그래도 불러올까요?")) return; }
+        if (applyImport(data)) { setNavOpen(false); setPage("dash"); window.scrollTo({ top:0 }); alert("데이터를 불러왔어요! ✅"); }
+        else alert("파일 형식을 읽을 수 없어요.");
+      } catch (e) { alert("백업 파일을 읽지 못했어요. 올바른 JSON 파일인지 확인해 주세요."); }
+    };
+    reader.onerror = () => alert("파일을 읽는 중 오류가 발생했어요.");
+    reader.readAsText(file);
+  };
   const visible = pages.filter((p) => !p.hidden);
   const current = (page === "dash" || page === "theme") ? null : pages.find((p) => p.id === page);
   const title = page === "dash" ? "대시보드" : page === "theme" ? "테마 설정" : (current ? current.label : "대시보드");
@@ -1849,6 +1889,11 @@ export default function App() {
             </button>
           </div>
           <button className="navbtn" onClick={() => { go("theme"); setNavOpen(false); }}><Palette size={18} /> <span>테마 설정</span></button>
+          <button className="navbtn" onClick={exportData}><Download size={18} /> <span>데이터 내보내기</span></button>
+          <label className="navbtn" style={{ cursor:"pointer" }}>
+            <Upload size={18} /> <span>데이터 가져오기</span>
+            <input type="file" accept="application/json,.json" hidden onChange={(e) => { importData(e.target.files?.[0]); e.target.value=""; }} />
+          </label>
           <button className="navbtn reset-row" onClick={() => { setResetOpen(true); setNavOpen(false); }}>
             <Trash2 size={18} /> <span>전체 초기화</span>
           </button>
@@ -1893,7 +1938,7 @@ export default function App() {
 
       {resetOpen && <Confirm title="전체 초기화" okLabel="모두 삭제"
         text="모든 데이터를 삭제하고 처음 상태로 되돌릴까요?"
-        sub="할 일·일정·습관·일기·지표·가계부·비전 보드·기록과 프로필이 모두 사라지며 되돌릴 수 없어요."
+        sub="되돌릴 수 없어요. 걱정되면 먼저 '데이터 내보내기'로 백업해두세요. (할 일·일정·습관·일기·지표·가계부·비전 보드·기록·프로필이 모두 삭제됩니다)"
         onCancel={() => setResetOpen(false)} onOk={resetAll} />}
       {menuOpen && <MenuManager pages={pages} setPages={setPages} setCustomData={setCustomData} onClose={() => setMenuOpen(false)} currentPageId={page} setPage={setPage} />}
       {profileOpen && (
