@@ -1717,7 +1717,7 @@ export default function App() {
   const [resetOpen, setResetOpen] = useState(false);
   const [pages, setPages] = usePersistentState("pages", BUILTINS);
   const [customData, setCustomData] = usePersistentState("customData", {});
-  const [profile, setProfile] = usePersistentState("profile", { name:"지훈", avatar:"" });
+  const [profile, setProfile] = usePersistentState("profile", { name:"사용자", avatar:"" });
   const [profileOpen, setProfileOpen] = useState(false);
   const [now, setNow] = useState(new Date());
   useEffect(() => { const id = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(id); }, []);
